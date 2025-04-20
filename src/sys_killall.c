@@ -18,6 +18,9 @@
 #include "queue.h"
 #include <stdlib.h>
 #include <string.h>
+#include <pthread.h>
+
+static pthread_mutex_t queue_lock_syscall_kill;
 
 int __sys_killall(struct pcb_t *caller, struct sc_regs* regs)
 {
@@ -48,7 +51,7 @@ int __sys_killall(struct pcb_t *caller, struct sc_regs* regs)
     struct pcb_t * proc_del;
     struct queue_t * run_list = caller->running_list;
     struct queue_t * red_que = caller->mlq_ready_queue;
-
+    pthread_mutex_lock(&queue_lock_syscall_kill);
     for(int i = 0; i < run_list->size; i++)
     {
         if(strcmp(run_list->proc[i]->path,proc_name) == 0)
@@ -78,6 +81,7 @@ int __sys_killall(struct pcb_t *caller, struct sc_regs* regs)
             free(proc_del);
         }
     }
+    pthread_mutex_unlock(&queue_lock_syscall_kill);
     /* TODO Maching and terminating 
      *       all processes with given
      *        name in var proc_name
