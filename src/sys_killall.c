@@ -13,6 +13,12 @@
 #include "stdio.h"
 #include "libmem.h"
 
+
+//Added previously
+#include "queue.h"
+#include <stdlib.h>
+#include <string.h>
+
 int __sys_killall(struct pcb_t *caller, struct sc_regs* regs)
 {
     char proc_name[100];
@@ -38,7 +44,40 @@ int __sys_killall(struct pcb_t *caller, struct sc_regs* regs)
      */
     //caller->running_list
     //caller->mlq_ready_queu
+    
+    struct pcb_t * proc_del;
+    struct queue_t * run_list = caller->running_list;
+    struct queue_t * red_que = caller->mlq_ready_queue;
 
+    for(int i = 0; i < run_list->size; i++)
+    {
+        if(strcmp(run_list->proc[i]->path,proc_name) == 0)
+        {
+            proc_del = run_list->proc[i];
+            for (int j = i; j < run_list-> size - 1; j++)
+            {
+                run_list->proc[j] = run_list->proc[j + 1];
+            }
+            run_list->size--;
+            i--;
+            free(proc_del);
+        }
+    }
+    
+    for(int i = 0; i < red_que->size; i++)
+    {
+        if(strcmp(red_que->proc[i]->path,proc_name) == 0)
+        {
+            proc_del = red_que->proc[i];
+            for (int j = i; j < red_que-> size - 1; j++)
+            {
+                red_que->proc[j] = red_que->proc[j + 1];
+            }
+            red_que->size--;
+            i--;
+            free(proc_del);
+        }
+    }
     /* TODO Maching and terminating 
      *       all processes with given
      *        name in var proc_name
