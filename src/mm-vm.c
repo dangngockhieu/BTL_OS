@@ -53,6 +53,7 @@ int __mm_swap_page(struct pcb_t *caller, int vicfpn , int swpfpn)
 struct vm_rg_struct *get_vm_area_node_at_brk(struct pcb_t *caller, int vmaid, int size, int alignedsz)
 {
   struct vm_rg_struct * newrg;
+  struct vm_area_struct *cur_vma = get_vma_by_num(caller->mm, vmaid);
   /* TODO retrive current vma to obtain newrg, current comment out due to compiler redundant warning*/
   //struct vm_area_struct *cur_vma = get_vma_by_num(caller->mm, vmaid);
 
@@ -62,6 +63,8 @@ struct vm_rg_struct *get_vm_area_node_at_brk(struct pcb_t *caller, int vmaid, in
   // newrg->rg_start = ...
   // newrg->rg_end = ...
   */
+  newrg->rg_start = cur_vma->sbrk;
+  newrg->rg_end = newrg->rg_start + size;
 
   return newrg;
 }
@@ -79,7 +82,28 @@ int validate_overlap_vm_area(struct pcb_t *caller, int vmaid, int vmastart, int 
 
   /* TODO validate the planned memory area is not overlapped */
 
-  return 0;
+  if (vmastart >= vmaend)
+  {
+    return -1; // Vùng nhớ không hợp lệ
+  }
+
+  struct vm_area_struct *vma = caller->mm->mmap;
+  if (vma == NULL)
+  {
+    return -1; // Không có vùng nhớ nào
+  }
+
+  /* Kiểm tra trùng lặp vùng nhớ */
+  while (vma != NULL)
+  {
+    if (!(vma->vm_end <= vmastart || vma->vm_start >= vmaend))
+    {
+      return -1; // Có sự trùng lặp
+    }
+    vma = vma->vm_next;
+  }
+
+  return 0; // Không trùng lặp
 }
 
 /*inc_vma_limit - increase vm area limits to reserve space for new variable
@@ -105,6 +129,8 @@ int inc_vma_limit(struct pcb_t *caller, int vmaid, int inc_sz)
   /* TODO: Obtain the new vm area based on vmaid */
   //cur_vma->vm_end... 
   // inc_limit_ret...
+  cur_vma->vm_end += inc_sz;
+  cur_vma->sbrk += inc_sz;
 
   if (vm_map_ram(caller, area->rg_start, area->rg_end, 
                     old_end, incnumpage , newrg) < 0)
