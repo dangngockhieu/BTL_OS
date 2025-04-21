@@ -95,6 +95,9 @@ int vmap_page_range(struct pcb_t *caller,           // process call
   //ret_rg->rg_start = ...
   //ret_rg->vmaid = ...
   */
+  ret_rg->rg_start = addr;
+  ret_rg->rg_end = addr + pgnum * PAGING_PAGESZ;
+  
 
   /* TODO map range of frame to address space
    *      [addr to addr + pgnum*PAGING_PAGESZ
@@ -103,8 +106,15 @@ int vmap_page_range(struct pcb_t *caller,           // process call
 
   /* Tracking for later page replacement activities (if needed)
    * Enqueue new usage page */
-  enlist_pgn_node(&caller->mm->fifo_pgn, pgn + pgit);
+  struct framephy_struct *fpit = frames;
 
+  for (pgit = 0; pgit < pgnum; pgit++) {
+    int cur_pgn = pgn + pgit;
+    if (fpit == NULL) break; 
+    pte_set_fpn(&caller->mm->pgd[cur_pgn], fpit->fpn);
+    enlist_pgn_node(&caller->mm->fifo_pgn, pgn + pgit);
+    fpit = fpit->fp_next;
+  }
   return 0;
 }
 
@@ -119,22 +129,44 @@ int alloc_pages_range(struct pcb_t *caller, int req_pgnum, struct framephy_struc
 {
   int pgit, fpn;
   struct framephy_struct *newfp_str = NULL;
-
+  struct framephy_struct *lastfp_str = NULL;
   /* TODO: allocate the page 
   //caller-> ...
   //frm_lst-> ...
   */
-
+ *frm_lst = NULL;
   for (pgit = 0; pgit < req_pgnum; pgit++)
   {
   /* TODO: allocate the page 
    */
     if (MEMPHY_get_freefp(caller->mram, &fpn) == 0)
     {
+      newfp_str = (struct framephy_struct *)malloc(sizeof(struct framephy_struct));
       newfp_str->fpn = fpn;
+      newfp_str->fp_next = NULL;
+      newfp_str->owner = caller->mm;
+      if (*frm_lst == NULL)
+      {
+        *frm_lst = newfp_str;
+      }
+      else
+      {
+        lastfp_str->fp_next = newfp_str;
+      }
+      lastfp_str = newfp_str;
     }
     else
     { // TODO: ERROR CODE of obtaining somes but not enough frames
+      struct framephy_struct *fp = *frm_lst;
+      while (fp != NULL)
+      {
+        struct framephy_struct *tmp = fp;
+        fp = fp->fp_next;
+        free(tmp);
+      }
+      *frm_lst = NULL;
+
+      return -3000; 
     }
   }
 
@@ -217,7 +249,7 @@ int init_mm(struct mm_struct *mm, struct pcb_t *caller)
   struct vm_area_struct *vma0 = malloc(sizeof(struct vm_area_struct));
 
   mm->pgd = malloc(PAGING_MAX_PGN * sizeof(uint32_t));
-
+  memset(mm->pgd, 0, PAGING_MAX_PGN * sizeof(uint32_t));
   /* By default the owner comes with at least one vma */
   vma0->vm_id = 0;
   vma0->vm_start = 0;
@@ -228,13 +260,13 @@ int init_mm(struct mm_struct *mm, struct pcb_t *caller)
 
   /* TODO update VMA0 next */
   // vma0->next = ...
-
+  vma0->vm_next = NULL;
   /* Point vma owner backward */
   vma0->vm_mm = mm; 
 
   /* TODO: update mmap */
   //mm->mmap = ...
-
+  mm->mmap = vma0;
   return 0;
 }
 
