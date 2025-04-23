@@ -15,7 +15,7 @@ void enqueue(struct queue_t *q, struct pcb_t *proc)
         if (q == NULL)
         {
                 perror("Queue is NULL !\n");
-                exit(1);
+                exit(1); // Báo hiệu rằng chương trình kết thúc do lỗi
         }
         if (q->size == MAX_QUEUE_SIZE)
         {

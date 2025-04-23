@@ -4,18 +4,23 @@
 #include <pthread.h>
 #include <stdlib.h>
 #include <stdio.h>
-static struct queue_t ready_queue;
-static struct queue_t run_queue;
+static struct queue_t ready_queue; // Queue chứa các tiến trình sẵn sàng chạy
+static struct queue_t run_queue;   // Queue chứa các tiến trình đang chạy
+// Đảm bảo tính đồng bộ khi truy cập các hàng đợi trong môi trường đa luồng
 static pthread_mutex_t queue_lock;
 
-static struct queue_t running_list;
+static struct queue_t running_list; // Danh sách các tiến trình đang được xử lý
 #ifdef MLQ_SCHED
+// Một mảng các hàng đợi, mỗi hàng đợi tương ứng với một mức độ ưu tiên (priority)
+// trong Scheduler hàng đợi đa cấp
 static struct queue_t mlq_ready_queue[MAX_PRIO];
+// Một mảng lưu số lượng "slot" còn lại cho mỗi mức độ ưu tiên trong MLQ.
 static int slot[MAX_PRIO];
 #endif
 
 int queue_empty(void)
 {
+	// check empty
 #ifdef MLQ_SCHED
 	unsigned long prio;
 	for (prio = 0; prio < MAX_PRIO; prio++)
@@ -27,6 +32,7 @@ int queue_empty(void)
 
 void init_scheduler(void)
 {
+	// Khởi tạo các hàng đợi và mutex
 #ifdef MLQ_SCHED
 	int i;
 
@@ -50,6 +56,7 @@ void init_scheduler(void)
  */
 struct pcb_t *get_mlq_proc(void)
 {
+	// Lấy một tiến trình từ hàng đợi MLQ dựa trên mức độ ưu tiên.
 	struct pcb_t *proc = NULL;
 	/*TODO: get a process from PRIORITY [ready_queue].
 	 * Remember to use lock to protect the queue.
@@ -58,6 +65,8 @@ struct pcb_t *get_mlq_proc(void)
 	int i;
 	for (i = 0; i < MAX_PRIO; ++i)
 	{
+		// Nếu một hàng đợi ở mức độ ưu tiên nào đó rỗng hoặc slot[i] bằng 0
+		// chuyển sang mức độ ưu tiên tiếp theo.
 		if (empty(&mlq_ready_queue[i]) || slot[i] == 0)
 		{
 			slot[i] = MAX_PRIO - i;
@@ -70,7 +79,7 @@ struct pcb_t *get_mlq_proc(void)
 	pthread_mutex_unlock(&queue_lock);
 	return proc;
 }
-
+// Thêm một tiến trình vào hàng đợi MLQ tương ứng với mức độ ưu tiên
 void put_mlq_proc(struct pcb_t *proc)
 {
 	pthread_mutex_lock(&queue_lock);
