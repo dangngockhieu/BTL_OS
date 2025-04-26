@@ -138,7 +138,7 @@ int __alloc(struct pcb_t *caller, int vmaid, int rgid, int size, int *alloc_addr
   newrg->rg_next = NULL;
   enlist_vm_freerg_list(caller->mm, newrg);
 
-  /* 🔁 Thử lại get_free_vmrg_area() với vùng mới */
+  /*Thử lại get_free_vmrg_area() với vùng mới */
   if (get_free_vmrg_area(caller, vmaid, size, &rgnode) == 0)
   {
     caller->mm->symrgtbl[rgid].rg_start = rgnode.rg_start;
