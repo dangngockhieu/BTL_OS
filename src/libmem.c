@@ -106,9 +106,9 @@ int __alloc(struct pcb_t *caller, int vmaid, int rgid, int size, int *alloc_addr
   //regs.a2 = ...
   //regs.a3 = ...
   struct sc_regs regs;
-  regs.a1 = cur_vma->vm_start;
-  regs.a2 = old_sbrk + inc_sz;
-  regs.a3 = SYSMEM_INC_OP;
+  regs.a1 = SYSMEM_INC_OP;
+  regs.a2 = cur_vma->vm_start;
+  regs.a3 = old_sbrk + inc_sz;
   /* SYSCALL 17 sys_memmap */
   
   syscall(caller, 17, &regs);
@@ -225,9 +225,9 @@ int pg_getpage(struct mm_struct *mm, int pgn, int *fpn, struct pcb_t *caller)
     //regs.a1 =...
     //regs.a2 =...
     //regs.a3 =..
-    regs.a1 = victim_fpn;
-    regs.a2 = swpfpn;
-    regs.a3 = SYSMEM_SWP_OP;
+    regs.a1 = SYSMEM_SWP_OP;
+    regs.a2 = victim_fpn;
+    regs.a3 = swpfpn;
     /* SYSCALL 17 sys_memmap */
     syscall(caller, 17, &regs);
     /* TODO copy target frame form swap to mem 
@@ -242,9 +242,9 @@ int pg_getpage(struct mm_struct *mm, int pgn, int *fpn, struct pcb_t *caller)
     //regs.a3 =..
     */
     int tgt_swp = PAGING_PTE_SWP(pte);
-    regs.a1 = tgt_swp;
-    regs.a2 = victim_fpn;
-    regs.a3 = SYSMEM_SWP_OP;
+    regs.a1 = SYSMEM_SWP_OP; 
+    regs.a2 = tgt_swp;
+    regs.a3 = victim_fpn;
    
     /* SYSCALL 17 sys_memmap */
     syscall(caller, 17, &regs);
@@ -296,14 +296,15 @@ int pg_getval(struct mm_struct *mm, int addr, BYTE *data, struct pcb_t *caller)
   int phyaddr = fpn * PAGING_PAGESZ + PAGING_OFFST(addr);
 
   struct sc_regs regs;
-  regs.a1 = (long)caller->mram;
+  regs.a1 = SYSMEM_IO_READ;
   regs.a2 = phyaddr;
-  regs.a3 = (long)data;
+  
 
   
   /* SYSCALL 17 sys_memmap */
   syscall(caller, 17, &regs);
-  
+
+  *data = regs.a3;
   // Update data
   // data = (BYTE)
   return 0;
@@ -339,7 +340,7 @@ int pg_setval(struct mm_struct *mm, int addr, BYTE value, struct pcb_t *caller)
   int phyaddr = fpn * PAGING_PAGESZ + PAGING_OFFST(addr);
 
   struct sc_regs regs;
-  regs.a1 = (long)caller->mram;
+  regs.a1 = SYSMEM_IO_WRITE;
   regs.a2 = phyaddr;
   regs.a3 = value;
 
