@@ -73,9 +73,10 @@ int __alloc(struct pcb_t *caller, int vmaid, int rgid, int size, int *alloc_addr
 
   /* TODO: commit the vmaid */
   // rgnode.vmaid
-
+  printf("Call -alloc()\n");
   if (get_free_vmrg_area(caller, vmaid, size, &rgnode) == 0)
   {
+    printf("Call get free 11\n");
     caller->mm->symrgtbl[rgid].rg_start = rgnode.rg_start;
     caller->mm->symrgtbl[rgid].rg_end = rgnode.rg_end;
  
@@ -86,7 +87,7 @@ int __alloc(struct pcb_t *caller, int vmaid, int rgid, int size, int *alloc_addr
   }
 
   /* TODO get_free_vmrg_area FAILED handle the region management (Fig.6)*/
-
+  //printf("Fail first get free 11\n");
   /* TODO retrive current vma if needed, current comment out due to compiler redundant warning*/
   
   /*Attempt to increate limit to get space */
@@ -94,16 +95,17 @@ int __alloc(struct pcb_t *caller, int vmaid, int rgid, int size, int *alloc_addr
   struct vm_area_struct *cur_vma = get_vma_by_num(caller->mm, vmaid);
   //int inc_sz = PAGING_PAGE_ALIGNSZ(size);
   //int inc_limit_ret;
-
   int inc_sz = PAGING_PAGE_ALIGNSZ(size);
-  /* TODO retrive old_sbrk if needed, current comment out due to compiler redundant warning*/
-  int old_sbrk = cur_vma->sbrk;
-
+  /*
   int inc_limit_ret = inc_vma_limit(caller, vmaid, inc_sz);
   if (inc_limit_ret < 0) {
       pthread_mutex_unlock(&mmvm_lock);
       return -1;
   }
+  */
+  /* TODO retrive old_sbrk if needed, current comment out due to compiler redundant warning*/
+  int old_sbrk = cur_vma->sbrk;
+
   /* TODO INCREASE THE LIMIT as inovking systemcall 
    * sys_memap with SYSMEM_INC_OP 
    */
@@ -113,46 +115,24 @@ int __alloc(struct pcb_t *caller, int vmaid, int rgid, int size, int *alloc_addr
   //regs.a3 = ...
   struct sc_regs regs;
   regs.a1 = SYSMEM_INC_OP;
-  regs.a2 = cur_vma->vm_start;
-  regs.a3 = old_sbrk + inc_sz;
+  regs.a2 = vmaid; //cur_vma->vm_start;
+  regs.a3 = inc_sz;
   /* SYSCALL 17 sys_memmap */
-  
-  syscall(caller, 17, &regs);
+  int a = syscall(caller, 17, &regs);
+  if(a < 0) return -1;
   /* TODO: commit the limit increment */
   cur_vma->sbrk = old_sbrk + inc_sz;
   /* TODO: commit the allocation address 
   // *alloc_addr = ...
   */
+ rgnode.rg_start = old_sbrk; 
+ rgnode.rg_end = old_sbrk + inc_sz; 
 
- /*
-  *alloc_addr = old_sbrk;
-  caller->mm->symrgtbl[rgid].rg_start = old_sbrk;
-  caller->mm->symrgtbl[rgid].rg_end = old_sbrk + size;
-
-  return 0;
-  */
-   /* FIX: Sau khi tăng sbrk, phải tạo lại vùng free chính xác kích thước cần cấp */
-  struct vm_rg_struct *newrg = malloc(sizeof(struct vm_rg_struct));
-  newrg->rg_start = old_sbrk;
-  newrg->rg_end = old_sbrk + size;
-  newrg->rg_next = NULL;
-  enlist_vm_freerg_list(caller->mm, newrg);
-
-  /*Thử lại get_free_vmrg_area() với vùng mới */
-  if (get_free_vmrg_area(caller, vmaid, size, &rgnode) == 0)
-  {
-    caller->mm->symrgtbl[rgid].rg_start = rgnode.rg_start;
-    caller->mm->symrgtbl[rgid].rg_end = rgnode.rg_end;
-
-    *alloc_addr = rgnode.rg_start;
-
-    pthread_mutex_unlock(&mmvm_lock);
-    return 0;
-  }
-
-  /* Nếu đến đây vẫn fail thì trả lỗi */
-  pthread_mutex_unlock(&mmvm_lock);
-  return -1;
+ caller->mm->symrgtbl[rgid] = rgnode;
+ *alloc_addr = rgnode.rg_start;
+   pthread_mutex_unlock(&mmvm_lock);
+   return 0;
+ 
 }
 
 /*__free - remove a region memory
@@ -174,16 +154,18 @@ int __free(struct pcb_t *caller, int vmaid, int rgid)
     return -1;
 
   /* TODO: Manage the collect freed region to freerg_list */
-  
+  pthread_mutex_lock(&mmvm_lock);
+  //struct vm_rg_struct rg_free;
   struct vm_rg_struct *rg_free = malloc(sizeof(struct vm_rg_struct));
-    *rg_free = caller->mm->symrgtbl[rgid];
+  *rg_free = caller->mm->symrgtbl[rgid];
 
-    if (rg_free->rg_start >= rg_free->rg_end) {
-        free(rg_free);
-        return -1;
-    }
+   caller->mm->symrgtbl[rgid].rg_start = 0;
+   caller->mm->symrgtbl[rgid].rg_end  = 0;
 
-    return enlist_vm_freerg_list(caller->mm, rg_free);
+  int a = enlist_vm_freerg_list(caller->mm, rg_free);
+  if(a < 0) return -1;
+  pthread_mutex_unlock(&mmvm_lock);
+    return 0;
   /*enlist the obsoleted memory region */
   //enlist_vm_freerg_list();
 
