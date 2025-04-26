@@ -387,5 +387,19 @@ int print_pgtbl(struct pcb_t *caller, uint32_t start, uint32_t end)
 
   return 0;
 }
+void print_page_to_frame_mapping(struct pcb_t *proc) {
+  struct vm_area_struct *vma = get_vma_by_num(proc->mm, 0);
+  if (vma == NULL) return;
 
+  int start_pgn = PAGING_PGN(vma->vm_start);
+  int end_pgn = PAGING_PGN(vma->vm_end);
+
+  for (int i = start_pgn; i < end_pgn; i++) {
+      uint32_t pte = proc->mm->pgd[i];
+      if (PAGING_PAGE_PRESENT(pte) && !(pte & PAGING_PTE_SWAPPED_MASK)) {
+          int fpn = PAGING_PTE_FPN(pte);
+          printf("Page Number: %d -> Frame Number: %d\n", i, fpn);
+      }
+  }
+}
 // #endif
