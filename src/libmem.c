@@ -94,10 +94,16 @@ int __alloc(struct pcb_t *caller, int vmaid, int rgid, int size, int *alloc_addr
   struct vm_area_struct *cur_vma = get_vma_by_num(caller->mm, vmaid);
   //int inc_sz = PAGING_PAGE_ALIGNSZ(size);
   //int inc_limit_ret;
+
   int inc_sz = PAGING_PAGE_ALIGNSZ(size);
   /* TODO retrive old_sbrk if needed, current comment out due to compiler redundant warning*/
   int old_sbrk = cur_vma->sbrk;
 
+  int inc_limit_ret = inc_vma_limit(caller, vmaid, inc_sz);
+  if (inc_limit_ret < 0) {
+      pthread_mutex_unlock(&mmvm_lock);
+      return -1;
+  }
   /* TODO INCREASE THE LIMIT as inovking systemcall 
    * sys_memap with SYSMEM_INC_OP 
    */
@@ -117,12 +123,36 @@ int __alloc(struct pcb_t *caller, int vmaid, int rgid, int size, int *alloc_addr
   /* TODO: commit the allocation address 
   // *alloc_addr = ...
   */
+
+ /*
   *alloc_addr = old_sbrk;
   caller->mm->symrgtbl[rgid].rg_start = old_sbrk;
   caller->mm->symrgtbl[rgid].rg_end = old_sbrk + size;
 
   return 0;
+  */
+   /* FIX: Sau khi tăng sbrk, phải tạo lại vùng free chính xác kích thước cần cấp */
+  struct vm_rg_struct *newrg = malloc(sizeof(struct vm_rg_struct));
+  newrg->rg_start = old_sbrk;
+  newrg->rg_end = old_sbrk + size;
+  newrg->rg_next = NULL;
+  enlist_vm_freerg_list(caller->mm, newrg);
 
+  /* 🔁 Thử lại get_free_vmrg_area() với vùng mới */
+  if (get_free_vmrg_area(caller, vmaid, size, &rgnode) == 0)
+  {
+    caller->mm->symrgtbl[rgid].rg_start = rgnode.rg_start;
+    caller->mm->symrgtbl[rgid].rg_end = rgnode.rg_end;
+
+    *alloc_addr = rgnode.rg_start;
+
+    pthread_mutex_unlock(&mmvm_lock);
+    return 0;
+  }
+
+  /* Nếu đến đây vẫn fail thì trả lỗi */
+  pthread_mutex_unlock(&mmvm_lock);
+  return -1;
 }
 
 /*__free - remove a region memory
@@ -171,7 +201,12 @@ int liballoc(struct pcb_t *proc, uint32_t size, uint32_t reg_index)
   int addr;
 
   int ret = __alloc(proc, 0, reg_index, size, &addr);
-
+  printf("===== PHYSICAL MEMORY AFTER ALLOCATION =====\n");
+  printf("PID=%d - Region=%d - Address=%08x - Size=%d byte\n",
+       proc->pid, reg_index, addr, size);
+  print_pgtbl(proc, 0, -1);
+  print_page_to_frame_mapping(proc);
+  printf("================================================================\n");
   return ret;
 }
 
@@ -184,7 +219,11 @@ int liballoc(struct pcb_t *proc, uint32_t size, uint32_t reg_index)
 int libfree(struct pcb_t *proc, uint32_t reg_index)
 {
   int ret = __free(proc, 0, reg_index);
-
+  printf("===== PHYSICAL MEMORY AFTER DEALLOCATION =====\n");
+  printf("PID=%d - Region=%d\n", proc->pid, reg_index);
+  print_pgtbl(proc, 0, -1);
+  print_page_to_frame_mapping(proc);
+  printf("================================================================\n");
   return ret;
 }
 
@@ -383,17 +422,18 @@ int libread(
 {
   BYTE data;
   int val = __read(proc, 0, source, offset, &data);
-
+  printf("===== PHYSICAL MEMORY AFTER READING =====\n");
   /* TODO update result of reading action*/
   //destination 
 #ifdef IODUMP
   printf("read region=%d offset=%d value=%d\n", source, offset, data);
 #ifdef PAGETBL_DUMP
   print_pgtbl(proc, 0, -1); //print max TBL
+  print_page_to_frame_mapping(proc);
 #endif
   MEMPHY_dump(proc->mram);
 #endif
-
+  printf("================================================================\n");
   return val;
 }
 
@@ -425,14 +465,16 @@ int libwrite(
     uint32_t destination, // Index of destination register
     uint32_t offset)
 {
+  printf("===== PHYSICAL MEMORY AFTER WRITING =====\n");
 #ifdef IODUMP
   printf("write region=%d offset=%d value=%d\n", destination, offset, data);
 #ifdef PAGETBL_DUMP
   print_pgtbl(proc, 0, -1); //print max TBL
+  print_page_to_frame_mapping(proc);
 #endif
   MEMPHY_dump(proc->mram);
 #endif
-
+  printf("================================================================\n");
   return __write(proc, 0, destination, offset, data);
 }
 
