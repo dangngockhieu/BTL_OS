@@ -73,10 +73,10 @@ int __alloc(struct pcb_t *caller, int vmaid, int rgid, int size, int *alloc_addr
 
   /* TODO: commit the vmaid */
   // rgnode.vmaid
-  printf("Call -alloc()\n");
+  //printf("Call -alloc()\n");
   if (get_free_vmrg_area(caller, vmaid, size, &rgnode) == 0)
   {
-    printf("Call get free 11\n");
+    //printf("Call get free 11\n");
     caller->mm->symrgtbl[rgid].rg_start = rgnode.rg_start;
     caller->mm->symrgtbl[rgid].rg_end = rgnode.rg_end;
  
@@ -159,8 +159,8 @@ int __free(struct pcb_t *caller, int vmaid, int rgid)
   struct vm_rg_struct *rg_free = malloc(sizeof(struct vm_rg_struct));
   *rg_free = caller->mm->symrgtbl[rgid];
 
-   caller->mm->symrgtbl[rgid].rg_start = 0;
-   caller->mm->symrgtbl[rgid].rg_end  = 0;
+   //caller->mm->symrgtbl[rgid].rg_start = 0;
+   //caller->mm->symrgtbl[rgid].rg_end  = 0;
 
   int a = enlist_vm_freerg_list(caller->mm, rg_free);
   if(a < 0) return -1;
