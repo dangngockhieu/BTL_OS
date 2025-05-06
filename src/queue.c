@@ -26,8 +26,7 @@ void enqueue(struct queue_t *q, struct pcb_t *proc)
         q->size++;
 }
 
-struct pcb_t *dequeue(struct queue_t *q)
-{
+struct pcb_t * dequeue(struct queue_t * q) {
         /* TODO: return a pcb whose prioprity is the highest
          * in the queue [q] and remember to remove it from q
          * */
@@ -36,19 +35,19 @@ struct pcb_t *dequeue(struct queue_t *q)
                 return NULL; // Queue is empty
         }
 
-        int highest_priority_index = 0;
+        int lowest_priority_index = 0;
         for (int i = 1; i < q->size; i++)
         {
-                if (q->proc[i]->priority > q->proc[highest_priority_index]->priority)
+                if (q->proc[i]->priority < q->proc[lowest_priority_index]->priority)
                 {
-                        highest_priority_index = i;
+                        lowest_priority_index = i;
                 }
         }
 
-        struct pcb_t *highest_priority_proc = q->proc[highest_priority_index];
+        struct pcb_t *highest_priority_proc = q->proc[lowest_priority_index];
 
         // Shift remaining processes to fill the gap
-        for (int i = highest_priority_index; i < q->size - 1; i++)
+        for (int i = lowest_priority_index; i < q->size - 1; i++)
         {
                 q->proc[i] = q->proc[i + 1];
         }
